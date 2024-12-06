@@ -6,7 +6,6 @@
 #include <fstream>
 #include <sstream>
 #include <cstring>
-#include <cctype>
 #include <windows.h>
 #include <iomanip>
 using namespace std;
@@ -80,6 +79,7 @@ void displayCategories(Category categories[], int currentCategoryCount);
 void addProduct(Product products[], int &currentProductCount, int psize, Category categories[], int currentCategoryCount);
 bool isNearExpiry(string expiryDate);
 bool isValidExpiryDate(const string &expiryDate);
+bool isDigit(char c);
 void deleteProduct(Product products[], int &currentProductCount, Category categories[], int currentCategoryCount);
 void displayAllProducts(Product products[], int currentProductCount, Category categories[], int currentCategoryCount);
 void updateProduct(Product products[], int currentProductCount, Category categories[], int currentCategoryCount);
@@ -583,9 +583,9 @@ void saveDataToCSV(User users[], Product products[], Category categories[], int 
         if (users[i].exists)
         {
             userFile << users[i].username << ","
-                     << users[i].email << "," // Added email
+                     << users[i].email << "," 
                      << users[i].password << ","
-                     << (users[i].hasPurchased ? "1" : "0") << ","
+                     << (users[i].hasPurchased ? "Yes" : "No") << ","
                      << (users[i].feedback.empty() ? "No feedback" : users[i].feedback) << ",";
 
             // Write purchases
@@ -891,7 +891,7 @@ bool isValidExpiryDate(const string &expiryDate)
     {
         if (i == 4 || i == 7)
             continue; // Skip the '-' characters
-        if (!isdigit(expiryDate[i]))
+        if (!isDigit(expiryDate[i]))
         {
             return false;
         }
@@ -917,6 +917,12 @@ bool isValidExpiryDate(const string &expiryDate)
     }
 
     return true;
+}
+
+// Function to check if a character is a digit
+bool isDigit(char ch)
+{
+    return ch >= '0' && ch <= '9';
 }
 
 void addProduct(Product products[], int &currentProductCount, int psize, Category categories[], int currentCategoryCount)
@@ -1117,7 +1123,7 @@ void displayAllProducts(Product products[], int currentProductCount, Category ca
 // Helper function to check if the product is nearing expiry
 bool isNearExpiry(string expiryDate)
 {
-    // Simplified check for expiry
+    
     string currentDate = "2024-12-05";  // Replace with actual current date
     return (expiryDate <= currentDate); // Assume if expiry date is today or earlier, it's near expiry
 }
@@ -1626,8 +1632,8 @@ void purchaseProduct(User users[], Product products[], Category categories[], in
     int categoryChoice;
     while (!(cin >> categoryChoice) || categoryChoice < 1 || categoryChoice > currentCategoryCount)
     {
-        cin.clear();            // Clear the error flag
-        cin.ignore(1000, '\n'); // Discard invalid input
+        cin.clear();            
+        cin.ignore(1000, '\n'); 
         SetConsoleTextAttribute(hConsole, 4);
         cout << "\t\tInvalid category! Please try again : ";
         SetConsoleTextAttribute(hConsole, 15);
@@ -1718,23 +1724,50 @@ void purchaseProduct(User users[], Product products[], Category categories[], in
 // Function to RemovePurchased Item
 void removePurchasedItem(Product products[], User users[], int currentUser, int currentProductCount)
 {
+    // Call trackUserPurchases to track purchases before proceeding
     trackUserPurchases(users, products, currentUser, currentProductCount);
-    cout << "\n\n\t     Enter the product number to return: ";
-    int removeChoice;
-    cin >> removeChoice;
 
-    if (removeChoice < 1 || removeChoice > users[currentUser].purchaseCount)
+    // Check if the user has any purchases
+    if (users[currentUser].purchaseCount == 0)
     {
         SetConsoleTextAttribute(hConsole, 4);
-        cout << "\n\n\t\t\t\t\t       Invalid Selection!!!......... \n";
+        cout << "\n\n\t\t\t\t\t       No items to return!!!......... \n";
         Sleep(600);
         SetConsoleTextAttribute(hConsole, 15);
         return;
     }
 
+    cout << "\n\n\t     Enter the product number to return: ";
+    int removeChoice;
+
+    // Ensure valid input (integer within valid range)
+    while (true)
+    {
+        cin >> removeChoice;
+        if (cin.fail() || removeChoice < 1 || removeChoice > users[currentUser].purchaseCount)
+        {
+            inValid();
+            cout << "\n\t     Enter the product number to return: ";
+        }
+        else
+        {
+            break;
+        }
+    }
+
     removeChoice--; // Adjust for 0-based indexing
     int productIndex = users[currentUser].productIndices[removeChoice];
     int removedQuantity = users[currentUser].productQuantities[removeChoice];
+
+    // Check if the product index is valid
+    if (productIndex < 0 || productIndex >= currentProductCount || !products[productIndex].exists)
+    {
+        SetConsoleTextAttribute(hConsole, 4);
+        cout << "\n\n\t\t\t\t\t       Invalid Product!!!......... \n";
+        Sleep(600);
+        SetConsoleTextAttribute(hConsole, 15);
+        return;
+    }
 
     // Restore stock
     products[productIndex].quantity += removedQuantity;
@@ -1746,7 +1779,13 @@ void removePurchasedItem(Product products[], User users[], int currentUser, int 
         users[currentUser].productQuantities[i] = users[currentUser].productQuantities[i + 1];
     }
 
+    // Clear the last purchase entry
+    users[currentUser].productIndices[users[currentUser].purchaseCount - 1] = 0;
+    users[currentUser].productQuantities[users[currentUser].purchaseCount - 1] = 0;
+
+    // Decrease the purchase count
     users[currentUser].purchaseCount--;
+
     SetConsoleTextAttribute(hConsole, 2);
     cout << "\n\t\t\t\t\t    Item Returned Successfully!!!\n";
     SetConsoleTextAttribute(hConsole, 15);
@@ -1930,9 +1969,9 @@ void deleteUser(User users[], int &currentUserCount)
             break;
 
         // If user is not found, display an error and prompt again
-        SetConsoleTextAttribute(hConsole, 4); // Set red text
+        SetConsoleTextAttribute(hConsole, 4); 
         cout << "\n\t\t\t\t     Username does not exist!! Please try again." << endl;
-        SetConsoleTextAttribute(hConsole, 15); // Reset to white text
+        SetConsoleTextAttribute(hConsole, 15); 
     }
     return;
 }
